@@ -14,7 +14,7 @@ import qrcode
 
 # ---------- Config ----------
 APP_TITLE = "Trabalhos & QR"
-BASE_URL_HINT = "https://https://sict-qr-app.streamlit.app/"  # ex.: http://localhost:8501
+BASE_URL_HINT = "https://sict-qr-app.streamlit.app/"  # ex.: http://localhost:8501
 ADMIN_PASS = os.getenv("STREAMLIT_ADMIN_PASS", "")   # opcional
 DB_PATH = "trabalhos.db"
 
@@ -298,4 +298,5 @@ with tab_print:
                     st.caption(rec['titulo'][:80] + ("..." if len(rec['titulo']) > 80 else ""))
                     st.download_button("QR (PNG)", data=to_png_bytes(img), file_name=f"qr_{idx}.png")
     st.info("Dica: imprima esta página do navegador em PDF para montar folhas com vários QR Codes.")
+
 

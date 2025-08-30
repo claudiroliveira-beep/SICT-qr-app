@@ -235,9 +235,12 @@ if is_admin:
                 st.success(f"Importados {count} registros.")
 
 # -------------- Lista & QR (PÚBLICO) --------------
+# -------------- Lista & QR (PÚBLICO) --------------
 with tab_lista:
     st.subheader("Lista + QR")
     df = list_trabalhos()
+
+    # Busca
     q = st.text_input("Buscar por aluno, título, orientador, áreas…")
     if q:
         mask = (
@@ -247,44 +250,79 @@ with tab_lista:
             df["areas"].str.contains(q, case=False, na=False)
         )
         df = df[mask]
+
     st.dataframe(df)
 
     st.markdown("---")
-    st.subheader("Gerar QR de um registro")
-    sel_id = st.selectbox("Selecione um ID", options=df["id"].tolist() if not df.empty else [])
-    if sel_id:
-        url = build_detail_url(base_url, sel_id)
-        img = make_qr_image(url)
-        st.image(img, caption=url, use_container_width=False)
-        st.download_button("Baixar QR (PNG)", data=to_png_bytes(img), file_name=f"qr_{sel_id}.png")
+    st.subheader("Gerar QRs")
+    modo = st.radio("Selecione o modo", ["Individual", "Grade"], horizontal=True)
 
-    # Edição/Exclusão: somente admin
-    if is_admin and sel_id:
-        with st.expander("Editar / Excluir"):
-            rec = get_trabalho_by_id(sel_id)
-            aluno = st.text_input("Aluno(a)", value=rec["aluno"], key="e_aluno")
-            orientador = st.text_input("Orientador", value=rec["orientador"], key="e_orientador")
-            areas = st.text_input("Áreas", value=rec["areas"], key="e_areas")
-            titulo = st.text_area("Título", value=rec["titulo"], key="e_titulo")
-            avaliador1 = st.text_input("Avaliador 1", value=rec["avaliador1"], key="e_av1")
-            avaliador2 = st.text_input("Avaliador 2", value=rec["avaliador2"], key="e_av2")
-            painel = st.number_input("Nº do Painel", min_value=0, step=1, value=int(rec["painel"]), key="e_painel")
+    # ---- MODO INDIVIDUAL (público) ----
+    if modo == "Individual":
+        sel_id = st.selectbox("Selecione um ID", options=df["id"].tolist() if not df.empty else [])
+        if sel_id:
+            url = build_detail_url(base_url, sel_id)
+            img = make_qr_image(url)
+            st.image(img, caption=url, use_container_width=False)
+            st.download_button("Baixar QR (PNG)", data=to_png_bytes(img), file_name=f"qr_{sel_id}.png")
 
-            c1, c2 = st.columns(2)
-            if c1.button("Salvar alterações"):
-                rec["aluno"] = aluno
-                rec["orientador"] = orientador
-                rec["areas"] = areas
-                rec["titulo"] = titulo
-                rec["avaliador1"] = avaliador1
-                rec["avaliador2"] = avaliador2
-                rec["painel"] = int(painel)
-                update_trabalho(rec)
-                st.success("Atualizado.")
+            # Edição/Exclusão: somente admin
+            if is_admin:
+                with st.expander("Editar / Excluir"):
+                    rec = get_trabalho_by_id(sel_id)
+                    aluno = st.text_input("Aluno(a)", value=rec["aluno"], key="e_aluno")
+                    orientador = st.text_input("Orientador", value=rec["orientador"], key="e_orientador")
+                    areas = st.text_input("Áreas", value=rec["areas"], key="e_areas")
+                    titulo = st.text_area("Título", value=rec["titulo"], key="e_titulo")
+                    avaliador1 = st.text_input("Avaliador 1", value=rec["avaliador1"], key="e_av1")
+                    avaliador2 = st.text_input("Avaliador 2", value=rec["avaliador2"], key="e_av2")
+                    painel = st.number_input("Nº do Painel", min_value=0, step=1, value=int(rec["painel"]), key="e_painel")
 
-            if c2.button("Excluir registro", type="primary"):
-                delete_trabalho(sel_id)
-                st.warning("Excluído. Atualize a página.")
+                    c1, c2 = st.columns(2)
+                    if c1.button("Salvar alterações"):
+                        rec["aluno"] = aluno
+                        rec["orientador"] = orientador
+                        rec["areas"] = areas
+                        rec["titulo"] = titulo
+                        rec["avaliador1"] = avaliador1
+                        rec["avaliador2"] = avaliador2
+                        rec["painel"] = int(painel)
+                        update_trabalho(rec)
+                        st.success("Atualizado.")
+                    if c2.button("Excluir registro", type="primary"):
+                        delete_trabalho(sel_id)
+                        st.warning("Excluído. Atualize a página.")
+
+    # ---- MODO GRADE (público) ----
+    else:
+        if df.empty:
+            st.info("Nenhum registro para gerar grade.")
+        else:
+            # seleção múltipla e parâmetros de layout
+            ids = st.multiselect(
+                "Escolha os trabalhos",
+                options=df["id"].tolist(),
+                default=df["id"].tolist()[:8],
+                help="Selecione os IDs que deseja incluir na grade."
+            )
+            cols = st.number_input("Cartões por linha (sug.: 3)", min_value=1, max_value=5, value=3)
+
+            if ids:
+                rows = (len(ids) + cols - 1) // cols
+                for r in range(rows):
+                    cset = st.columns(int(cols))
+                    for c, idx in enumerate(ids[r*int(cols):(r+1)*int(cols)]):
+                        with cset[c]:
+                            rec = get_trabalho_by_id(idx)
+                            if not rec:
+                                continue
+                            url = build_detail_url(base_url, idx)
+                            img = make_qr_image(url)
+                            st.image(img, use_container_width=True)
+                            st.caption(f"{rec['aluno']} — Painel {rec['painel']}")
+                            st.caption(rec['titulo'][:80] + ("..." if len(rec['titulo']) > 80 else ""))
+                            st.download_button("QR (PNG)", data=to_png_bytes(img), file_name=f"qr_{idx}.png")
+
 
 # -------------- Exportar (ADMIN) --------------
 if is_admin:
@@ -314,6 +352,7 @@ if is_admin:
                         st.caption(f"{rec['aluno']} — Painel {rec['painel']}")
                         st.caption(rec['titulo'][:80] + ("..." if len(rec['titulo']) > 80 else ""))
                         st.download_button("QR (PNG)", data=to_png_bytes(img), file_name=f"qr_{idx}.png")
+
 
 
 
